@@ -3,8 +3,6 @@ import path from "path";
 import chalk from "chalk";
 import axios from "axios";
 import { fileURLToPath } from "url";
-import readline from "readline";
-import { HttpsProxyAgent } from "https-proxy-agent";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -12,21 +10,14 @@ dotenv.config();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 class DeviceHeartbeatBot {
-  constructor(account, proxyConfig = null) {
+  constructor(account) {
     this.account = account;
-    this.proxyConfig = proxyConfig ? new HttpsProxyAgent(proxyConfig) : null;
     this.baseUrls = {
       secApi: "https://naorisprotocol.network/sec-api/api",
       testnetApi: "https://naorisprotocol.network/testnet-api/api/testnet",
     };
     this.deviceHash = account.deviceHash;
     this.toggleState = true;
-
-    if (proxyConfig) {
-      console.log(chalk.blue(`[📡] Running with proxy: ${proxyConfig}`));
-    } else {
-      console.log(chalk.yellow(`[⚠️] Running without proxy`));
-    }
   }
 
   static async loadAccounts(configPath = path.join(__dirname, "accounts.json")) {
@@ -39,19 +30,9 @@ class DeviceHeartbeatBot {
     }
   }
 
-  static async loadProxies(proxyPath = path.join(__dirname, "proxy.txt")) {
-    try {
-      const proxyData = await fs.readFile(proxyPath, "utf8");
-      return proxyData.split("\n").filter((line) => line.trim());
-    } catch (error) {
-      console.error(chalk.red("Failed to load proxies:"), error.message);
-      return [];
-    }
-  }
-
   async sendRequest(url, method, payload) {
     try {
-      const config = {
+      const response = await axios({
         method,
         url,
         data: payload,
@@ -60,10 +41,8 @@ class DeviceHeartbeatBot {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
           "Content-Type": "application/json",
         },
-        httpsAgent: this.proxyConfig,
-      };
+      });
 
-      const response = await axios(config);
       return response.data;
     } catch (error) {
       console.error(chalk.red(`Error in ${method} request to ${url}:`), error.message);
@@ -123,27 +102,11 @@ class DeviceHeartbeatBot {
   }
 }
 
-async function askForProxyUsage() {
-  return new Promise((resolve) => {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    rl.question(chalk.white("Use proxies? (y/n): "), (answer) => {
-      rl.close();
-      resolve(answer.toLowerCase() === "y");
-    });
-  });
-}
-
 async function main() {
   console.log(chalk.cyan("Starting Naoris Auto-Bot..."));
 
-  const useProxy = await askForProxyUsage();
   let accounts = await DeviceHeartbeatBot.loadAccounts();
-  let proxies = useProxy ? await DeviceHeartbeatBot.loadProxies() : [];
-
-  const bots = Object.values(accounts).map((acc, index) => {
-    const proxy = proxies.length > 0 ? proxies[index % proxies.length] : null;
-    return new DeviceHeartbeatBot(acc, proxy);
-  });
+  const bots = Object.values(accounts).map((acc) => new DeviceHeartbeatBot(acc));
 
   for (const bot of bots) bot.startHeartbeatCycle();
 }
