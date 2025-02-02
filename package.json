@@ -1,12 +1,12 @@
 {
   "name": "naoris-auto-bot",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "An automated bot for interacting with the Naoris Protocol network.",
   "main": "index.js",
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "pm2": "pm2 start index.js --name Naoris --max-memory-restart 125M",
+    "pm2": "pm2 start index.js --name Naoris --max-memory-restart 256M --watch",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -19,10 +19,11 @@
   "dependencies": {
     "axios": "^1.6.2",
     "chalk": "^5.3.0",
-    "cloudscraper": "^4.6.0",
     "https-proxy-agent": "^7.0.2",
     "socks-proxy-agent": "^8.0.2",
-    "uuid": "^11.0.5"
+    "uuid": "^11.0.5",
+    "pm2": "^5.3.0",
+    "dotenv": "^16.3.1"
   },
   "engines": {
     "node": ">=16.0.0"
