@@ -1,6 +1,6 @@
 {
   "name": "naoris-auto-bot",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "An automated bot for interacting with the Naoris Protocol network.",
   "main": "index.js",
   "type": "module",
