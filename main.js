@@ -3,7 +3,6 @@ import path from "path";
 import chalk from "chalk";
 import cloudscraper from "cloudscraper";
 import banner from "./utils/banner.js";
-import readline from "readline";
 
 class DeviceHeartbeatBot {
   constructor(account, proxyConfig = null) {
@@ -191,40 +190,6 @@ class DeviceHeartbeatBot {
   }
 }
 
-async function askForProxyUsage() {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  return new Promise((resolve) => {
-    console.log(chalk.cyan("\n=== Proxy Configuration ==="));
-    console.log(chalk.white("Do you want to use proxies? (y/n)"));
-    rl.question("> ", async (answer) => {
-      rl.close();
-      if (answer.toLowerCase() === "y") {
-        console.log(chalk.yellow("\n[⚠️] Warning: Using proxies may cause Cloudflare errors"));
-        console.log(chalk.white("Press any key to continue..."));
-
-        // Wait for any key press
-        await new Promise((resolve) => {
-          process.stdin.setRawMode(true);
-          process.stdin.resume();
-          process.stdin.once("data", () => {
-            process.stdin.setRawMode(false);
-            process.stdin.pause();
-            resolve();
-          });
-        });
-
-        resolve(true);
-      } else {
-        resolve(false);
-      }
-    });
-  });
-}
-
 function decodeJWT(token) {
   const [header, payload, signature] = token.split(".");
 
@@ -247,7 +212,7 @@ function decodeJWT(token) {
 async function main() {
   try {
     console.log(banner());
-    const useProxy = await askForProxyUsage();
+    const useProxy = false; // Automatically select "n" for proxy usage
     let accounts = await DeviceHeartbeatBot.loadAccounts();
     accounts = Object.values(accounts);
     let proxies = [];
