@@ -3,12 +3,10 @@ import path from "path";
 import chalk from "chalk";
 import cloudscraper from "cloudscraper";
 import banner from "./utils/banner.js";
-import readline from "readline";
 
 class DeviceHeartbeatBot {
-  constructor(account, proxyConfig = null) {
+  constructor(account) {
     this.account = account;
-    this.proxyConfig = proxyConfig;
     this.baseUrls = {
       secApi: "https://naorisprotocol.network/sec-api/api",
       testnetApi: "https://naorisprotocol.network/testnet-api/api/testnet",
@@ -19,11 +17,7 @@ class DeviceHeartbeatBot {
     this.whitelistedUrls = ["naorisprotocol.network", "google.com"];
     this.isInstalled = true;
 
-    if (proxyConfig) {
-      console.log(chalk.blue(`[📡] Running with proxy: ${proxyConfig}`));
-    } else {
-      console.log(chalk.yellow(`[⚠️] Running without proxy`));
-    }
+    console.log(chalk.yellow(`[⚠️] Running without proxy`));
   }
 
   static async loadAccounts(configPath = path.join(process.cwd(), "accounts.json")) {
@@ -36,18 +30,8 @@ class DeviceHeartbeatBot {
     }
   }
 
-  static async loadProxies(proxyPath = path.join(process.cwd(), "proxy.txt")) {
-    try {
-      const proxyData = await fs.readFile(proxyPath, "utf8");
-      return proxyData.split("\n").filter((line) => line.trim());
-    } catch (error) {
-      console.error(chalk.red("Failed to load proxies:"), error.message);
-      return [];
-    }
-  }
-
   getRequestConfig() {
-    const config = {
+    return {
       headers: {
         Authorization: `Bearer ${this.account.token}`,
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
@@ -55,12 +39,6 @@ class DeviceHeartbeatBot {
         "Content-Type": "application/json",
       },
     };
-
-    if (this.proxyConfig) {
-      config.proxy = this.proxyConfig;
-    }
-
-    return config;
   }
 
   async toggleDevice(state = "ON") {
@@ -75,14 +53,12 @@ class DeviceHeartbeatBot {
       const response = await cloudscraper.post(`${this.baseUrls.secApi}/toggle`, {
         json: payload,
         headers: this.getRequestConfig().headers,
-        proxy: this.proxyConfig,
       });
 
       this.toggleState = state === "ON";
       this.logSuccess("Device Toggle", response);
-      console.log(`Toggle state (${state}) sent to backend.`);
     } catch (error) {
-      // this.logError("Toggle Error", error);
+      this.logError("Toggle Error", error);
     }
   }
 
@@ -103,13 +79,12 @@ class DeviceHeartbeatBot {
       const response = await cloudscraper.post(`${this.baseUrls.secApi}/produce-to-kafka`, {
         json: payload,
         headers: this.getRequestConfig().headers,
-        proxy: this.proxyConfig,
       });
 
       console.log("Heartbeat sent to backend.");
       this.logSuccess("Heartbeat", response);
     } catch (error) {
-      // this.logError("Heartbeat Error", error.message);
+      this.logError("Heartbeat Error", error);
     }
   }
 
@@ -122,7 +97,6 @@ class DeviceHeartbeatBot {
       const response = await cloudscraper.post(`${this.baseUrls.testnetApi}/walletDetails`, {
         json: payload,
         headers: this.getRequestConfig().headers,
-        proxy: this.proxyConfig,
       });
 
       if (!response.error) {
@@ -132,7 +106,7 @@ class DeviceHeartbeatBot {
         this.logError("Wallet Details", response);
       }
     } catch (error) {
-      this.logError("Wallet Details Fetch", error.message);
+      this.logError("Wallet Details Fetch", error);
     }
   }
 
@@ -173,7 +147,7 @@ class DeviceHeartbeatBot {
         process.exit();
       });
     } catch (error) {
-      this.logError("Heartbeat Cycle Start", error.message);
+      this.logError("Heartbeat Cycle Start", error);
     }
   }
 
@@ -191,40 +165,6 @@ class DeviceHeartbeatBot {
   }
 }
 
-async function askForProxyUsage() {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  return new Promise((resolve) => {
-    console.log(chalk.cyan("\n=== Proxy Configuration ==="));
-    console.log(chalk.white("Do you want to use proxies? (y/n)"));
-    rl.question("> ", async (answer) => {
-      rl.close();
-      if (answer.toLowerCase() === "y") {
-        console.log(chalk.yellow("\n[⚠️] Warning: Using proxies may cause Cloudflare errors"));
-        console.log(chalk.white("Press any key to continue..."));
-
-        // Wait for any key press
-        await new Promise((resolve) => {
-          process.stdin.setRawMode(true);
-          process.stdin.resume();
-          process.stdin.once("data", () => {
-            process.stdin.setRawMode(false);
-            process.stdin.pause();
-            resolve();
-          });
-        });
-
-        resolve(true);
-      } else {
-        resolve(false);
-      }
-    });
-  });
-}
-
 function decodeJWT(token) {
   const [header, payload, signature] = token.split(".");
 
@@ -240,23 +180,16 @@ function decodeJWT(token) {
   return {
     header: decodedHeader,
     payload: decodedPayload,
-    signature: signature, // You might not need to decode the signature  jZZc-E5AZ6S8Y6vO-I-Oj2a296AaOWeeCElkN9FTk08
+    signature: signature,
   };
 }
 
 async function main() {
   try {
     console.log(banner());
-    const useProxy = await askForProxyUsage();
+
     let accounts = await DeviceHeartbeatBot.loadAccounts();
     accounts = Object.values(accounts);
-    let proxies = [];
-    if (useProxy) {
-      proxies = await DeviceHeartbeatBot.loadProxies();
-      if (proxies.length === 0) {
-        console.log(chalk.yellow("[⚠️] No proxies found in proxy.txt, running without proxy"));
-      }
-    }
 
     const bots = accounts.map((acc, index) => {
       const account = decodeJWT(acc.token);
@@ -265,8 +198,7 @@ async function main() {
           console.log(chalk.yellow(`[Account ${index + 1}] Token expired for account ${account.payload.wallet_address}, skipping...`));
           return null;
         }
-        const proxy = proxies.length > 0 ? proxies[index % proxies.length] : null;
-        return new DeviceHeartbeatBot(acc, proxy);
+        return new DeviceHeartbeatBot(acc);
       }
     });
 
